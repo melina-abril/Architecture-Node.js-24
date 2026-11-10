@@ -9,7 +9,7 @@ import { sessionCookieOptions, signSessionToken } from './session-token.js';
 
 const loginSchema = z.object({
   email: z.email('Ingresa un correo válido.').trim(),
-  password: z.string().min(1, 'Ingresa tu contraseña.'),
+  password: z.string({ error: 'Ingresa tu contraseña.' }).min(1, 'Ingresa tu contraseña.'),
 });
 
 /** Respuesta de login y /me: misma forma que SessionUser del front. */

@@ -1,7 +1,9 @@
+import { randomBytes } from 'node:crypto';
+
 /**
  * Configuración por variables de entorno (process.env), con valores por defecto de DESARROLLO que coinciden con la
  * base que levanta la capa database (docker compose up -d). npm run dev y npm start leen un .env de la raíz si
- * existe. En producción se pasan todas por el entorno, en especial JWT_SECRET y COOKIE_SECURE=true.
+ * existe. En producción (NODE_ENV=production) se pasan todas por el entorno: sin JWT_SECRET la API no arranca.
  */
 const text = (name: string, fallback: string): string => {
   const value = process.env[name]?.trim();
@@ -21,9 +23,27 @@ if (!(DB_CLIENTS as readonly string[]).includes(dbClient)) {
   throw new Error(`DB_CLIENT="${dbClient}" no es válido: usa ${DB_CLIENTS.join(' o ')}.`);
 }
 
+const isProduction = process.env['NODE_ENV'] === 'production';
+
+/**
+ * Secreto HS256 de los JWT de sesión. Nunca hay uno fijo en el código (sería público y cualquiera podría firmar
+ * sesiones): en producción es obligatorio y, en desarrollo, sin JWT_SECRET se genera uno al azar en cada arranque
+ * (las sesiones se pierden al reiniciar).
+ */
+function sessionSecret(): string {
+  const configured = process.env['JWT_SECRET']?.trim();
+  if (configured) {
+    if (configured.length < 32) throw new Error('JWT_SECRET tiene que tener al menos 32 caracteres.');
+    return configured;
+  }
+  if (isProduction) throw new Error('Falta JWT_SECRET: en producción es obligatorio (al menos 32 caracteres al azar).');
+  console.warn('Sin JWT_SECRET: se usa un secreto al azar y las sesiones se pierden al reiniciar.');
+  return randomBytes(32).toString('hex');
+}
+
 export const env = {
   port: integer('PORT', 8080),
-  isProduction: process.env['NODE_ENV'] === 'production',
+  isProduction,
   db: {
     client: dbClient as DbClient,
     /** Si viene, reemplaza a host/port/name/user/password (ej. postgres://app:app@localhost:5432/app). */
@@ -41,13 +61,10 @@ export const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   session: {
-    /** Secreto HS256 de los JWT de sesión (al menos 32 caracteres). */
-    jwtSecret: text('JWT_SECRET', 'dev-secret-cambiar-en-produccion-0123456789abcdef'),
+    jwtSecret: sessionSecret(),
     cookieName: 'app_session',
     hours: integer('SESSION_HOURS', 8),
-    /** true en producción (HTTPS). En desarrollo el front y el backend corren por http://localhost. */
-    cookieSecure: text('COOKIE_SECURE', 'false') === 'true',
+    /** Cookie solo por HTTPS: por defecto true en producción y false en desarrollo (http://localhost). */
+    cookieSecure: text('COOKIE_SECURE', isProduction ? 'true' : 'false') === 'true',
   },
 } as const;
-
-if (env.session.jwtSecret.length < 32) throw new Error('JWT_SECRET tiene que tener al menos 32 caracteres.');
