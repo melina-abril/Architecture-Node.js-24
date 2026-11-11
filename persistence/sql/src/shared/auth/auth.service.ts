@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { db } from '../../config/database.js';
+import { toBoolean } from '../db/db-utils.js';
 import { UnauthorizedError } from '../errors/http-errors.js';
 import type { CurrentUser } from './current-user.js';
 
@@ -32,6 +33,6 @@ export async function authenticate(email: string, password: string): Promise<Cur
     .whereRaw('LOWER(email) = ?', [email.trim().toLowerCase()])
     .first();
   const matches = await bcrypt.compare(password, row?.password_hash ?? DUMMY_HASH);
-  if (!row || !matches || !row.active) throw invalidCredentials();
+  if (!row || !matches || !toBoolean(row.active)) throw invalidCredentials();
   return { id: row.id, name: row.name, email: row.email, role: row.role };
 }
