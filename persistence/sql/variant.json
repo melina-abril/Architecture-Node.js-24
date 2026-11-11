@@ -11,6 +11,10 @@
   },
   "placeholders": {
     "{{DB_CLIENT}}": { "postgresql": "pg", "mysql": "mysql2", "sqlserver": "mssql", "oracle": "oracledb" },
-    "{{DB_ENGINE}}": { "postgresql": "PostgreSQL", "mysql": "MySQL", "sqlserver": "SQL Server", "oracle": "Oracle" }
+    "{{DB_ENGINE}}": { "postgresql": "PostgreSQL", "mysql": "MySQL", "sqlserver": "SQL Server", "oracle": "Oracle" },
+    "{{DB_PORT}}": { "postgresql": "5432", "mysql": "3306", "sqlserver": "1433", "oracle": "1521" },
+    "{{DB_NAME}}": { "postgresql": "app", "mysql": "app", "sqlserver": "app", "oracle": "FREEPDB1" },
+    "{{DB_USER}}": { "postgresql": "app", "mysql": "app", "sqlserver": "sa", "oracle": "app" },
+    "{{DB_PASSWORD}}": { "postgresql": "app", "mysql": "app", "sqlserver": "Dev_Passw0rd!", "oracle": "app" }
   }
 }
