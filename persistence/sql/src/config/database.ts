@@ -15,14 +15,28 @@ if (!(DB_CLIENTS as readonly string[]).includes(configuredClient)) {
 }
 export const dbClient = configuredClient as DbClient;
 
-/** Valores por defecto de cada motor: los mismos que levanta la capa database (docker compose up -d). */
-const DEFAULTS: Record<DbClient, { port: number; name: string; user: string; password: string }> = {
+type ConnectionDefaults = { port: number; name: string; user: string; password: string };
+
+/**
+ * Valores de DESARROLLO de la base de la capa database (los del .env.example de su docker compose, tomados de su
+ * archivo de contexto al generar este backend): con ellos conecta sin .env. En producción van por el entorno.
+ */
+const DATABASE_LAYER: { client: string } & ConnectionDefaults = {
+  client: '{{DB_CLIENT}}',
+  port: Number('{{DB_PORT}}'),
+  name: '{{DB_NAME}}',
+  user: '{{DB_USER}}',
+  password: '{{DB_PASSWORD}}',
+};
+
+/** Por defecto de cada motor, si se cambia DB_CLIENT a otro que el de la capa database. */
+const ENGINE_DEFAULTS: Record<DbClient, ConnectionDefaults> = {
   pg: { port: 5432, name: 'app', user: 'app', password: 'app' },
   mysql2: { port: 3306, name: 'app', user: 'app', password: 'app' },
   mssql: { port: 1433, name: 'app', user: 'sa', password: 'Dev_Passw0rd!' },
   oracledb: { port: 1521, name: 'FREEPDB1', user: 'app', password: 'app' },
 };
-const defaults = DEFAULTS[dbClient];
+const defaults = dbClient === DATABASE_LAYER.client ? DATABASE_LAYER : ENGINE_DEFAULTS[dbClient];
 
 const settings = {
   /** Si viene, reemplaza a host/port/name/user/password (ej. postgres://app:app@localhost:5432/app). */
