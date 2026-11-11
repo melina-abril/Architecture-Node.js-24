@@ -1,27 +1,20 @@
 import { randomBytes } from 'node:crypto';
 
 /**
- * Configuración por variables de entorno (process.env), con valores por defecto de DESARROLLO que coinciden con la
- * base que levanta la capa database (docker compose up -d). npm run dev y npm start leen un .env de la raíz si
- * existe. En producción (NODE_ENV=production) se pasan todas por el entorno: sin JWT_SECRET la API no arranca.
+ * Configuración por variables de entorno (process.env), con valores por defecto de DESARROLLO. npm run dev y
+ * npm start leen un .env de la raíz si existe. En producción (NODE_ENV=production) se pasan todas por el entorno:
+ * sin JWT_SECRET la API no arranca. La conexión a la base la lee config/database.ts con envText / envInteger (solo
+ * config/ lee process.env).
  */
-const text = (name: string, fallback: string): string => {
+export const envText = (name: string, fallback: string): string => {
   const value = process.env[name]?.trim();
   return value ? value : fallback;
 };
 
-const integer = (name: string, fallback: number): number => {
+export const envInteger = (name: string, fallback: number): number => {
   const value = Number(process.env[name]);
   return Number.isInteger(value) && value > 0 ? value : fallback;
 };
-
-const DB_CLIENTS = ['pg', 'mysql2'] as const;
-export type DbClient = (typeof DB_CLIENTS)[number];
-
-const dbClient = text('DB_CLIENT', 'pg');
-if (!(DB_CLIENTS as readonly string[]).includes(dbClient)) {
-  throw new Error(`DB_CLIENT="${dbClient}" no es válido: usa ${DB_CLIENTS.join(' o ')}.`);
-}
 
 const isProduction = process.env['NODE_ENV'] === 'production';
 
@@ -42,29 +35,18 @@ function sessionSecret(): string {
 }
 
 export const env = {
-  port: integer('PORT', 8080),
+  port: envInteger('PORT', 8080),
   isProduction,
-  db: {
-    client: dbClient as DbClient,
-    /** Si viene, reemplaza a host/port/name/user/password (ej. postgres://app:app@localhost:5432/app). */
-    url: process.env['DATABASE_URL']?.trim() || null,
-    host: text('DB_HOST', 'localhost'),
-    port: integer('DB_PORT', dbClient === 'mysql2' ? 3306 : 5432),
-    name: text('DB_NAME', 'app'),
-    user: text('DB_USER', 'app'),
-    password: text('DB_PASSWORD', 'app'),
-    poolMax: integer('DB_POOL_MAX', 10),
-  },
   /** Orígenes del frontend que pueden llamar a la API (CORS con credenciales), separados por coma. */
-  corsOrigins: text('FRONT_URL', 'http://localhost:4200')
+  corsOrigins: envText('FRONT_URL', 'http://localhost:4200')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
   session: {
     jwtSecret: sessionSecret(),
     cookieName: 'app_session',
-    hours: integer('SESSION_HOURS', 8),
+    hours: envInteger('SESSION_HOURS', 8),
     /** Cookie solo por HTTPS: por defecto true en producción y false en desarrollo (http://localhost). */
-    cookieSecure: text('COOKIE_SECURE', isProduction ? 'true' : 'false') === 'true',
+    cookieSecure: envText('COOKIE_SECURE', isProduction ? 'true' : 'false') === 'true',
   },
 } as const;

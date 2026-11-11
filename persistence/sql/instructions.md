@@ -1,0 +1,14 @@
+## Persistencia: {{DB_ENGINE}} con Knex
+- La base es {{DB_ENGINE}} (DB_CLIENT={{DB_CLIENT}} por defecto). El package.json ya trae knex 3 y el driver de {{DB_ENGINE}}: no sumes otros.
+- config/database.ts (FIJO): `db` (el pool de Knex) y `closeDatabase`. shared/db (FIJO): newId() (uuid), toIsoDateTime, toIsoDate, toMoney, toCount, toBoolean, LIKE y likePattern(texto).
+- Persistencia SIEMPRE con Knex sobre la base de la capa database (nunca datos dummy ni arreglos en memoria). El backend NO crea ni migra tablas (nada de knex.migrate, schema.createTable ni alter):
+  - Con DATA.databaseContract: usa EXACTAMENTE sus nombres de tabla y columna (DATA.databaseFiles).
+  - Con DATA.designDatabase (la base todavía no existe): tú diseñas las tablas en el tipo de fila de cada repositorio (snake_case, tablas en plural, ids varchar(36) con uuid) y la capa database las crea después a partir de ellos.
+- shared/auth autentica contra la tabla users (id varchar(36), email, password_hash, name, role, active, created_at). Si un módulo guarda quién hizo algo, guarda el id en una columna {accion}_by varchar(36) que referencia users, nunca el nombre.
+- {modulo}.repository.ts: una interface {Entidad}Row por tabla con las columnas EXACTAS en snake_case, y `export const {TABLA}_TABLE = { tableName: '{tabla}' } as const` por tabla (la capa database lee ese nombre). Filtra, ordena y pagina en la consulta (where, orderBy, limit/offset, count) y devuelve filas.
+- Consultas con el query builder de Knex: db<Row>(TABLA).select(...COLUMNAS).where({ … }); valores siempre ligados, nunca concatenados en un string. Búsqueda "contiene": `whereRaw(\`LOWER(columna) ${LIKE}\`, [likePattern(texto.toLowerCase())])`.
+- Todo listado paginado lleva orderBy (SQL Server no pagina sin ORDER BY) y, para empatar, un orderBy('id') al final.
+- Ids: newId() en el service al crear (varchar(36)); si la columna es autoincremental (DATA.databaseFiles), no se manda y se busca la fila por un dato único después del insert. No uses .returning(): no existe en MySQL.
+- Tipos de fila que difieren entre motores: NUMERIC/DECIMAL puede llegar como string (toMoney / Number), COUNT como string (toCount), booleanos como boolean o 0/1 (toBoolean), fechas como Date (toIsoDateTime / toIsoDate).
+- Varias escrituras que van juntas: `await db.transaction(async (trx) => { … })` pasando trx a las consultas.
+- El service mapea fila → DTO (snake_case → camelCase, toMoney, toIsoDateTime, toIsoDate).

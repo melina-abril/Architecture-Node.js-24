@@ -1,0 +1,16 @@
+{
+  "engines": ["postgresql", "mysql", "sqlserver", "oracle"],
+  "dependencies": {
+    "knex": "~3.3.0"
+  },
+  "engineDependencies": {
+    "postgresql": { "pg": "~8.23.1" },
+    "mysql": { "mysql2": "~3.24.6" },
+    "sqlserver": { "tedious": "~20.3.8" },
+    "oracle": { "oracledb": "~26.0.0" }
+  },
+  "placeholders": {
+    "{{DB_CLIENT}}": { "postgresql": "pg", "mysql": "mysql2", "sqlserver": "mssql", "oracle": "oracledb" },
+    "{{DB_ENGINE}}": { "postgresql": "PostgreSQL", "mysql": "MySQL", "sqlserver": "SQL Server", "oracle": "Oracle" }
+  }
+}
