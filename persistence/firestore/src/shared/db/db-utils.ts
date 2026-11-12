@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Timestamp, type DocumentData, type DocumentSnapshot, type Query } from 'firebase-admin/firestore';
+import { db } from '../../config/database.js';
 
-/** Id nuevo para un documento: se genera en el backend (uuid), nunca .add() ni doc() sin id. */
+/**
+ * Id nuevo para un documento: se genera en el backend (uuid), nunca .add() ni doc() sin id. Un código visible y
+ * correlativo (legajo, número de factura, ticket) NO es un uuid: usa createWithNextCode.
+ */
 export const newId = (): string => randomUUID();
 
 /** Documento con su id: los repositorios devuelven { id, ...campos }. undefined si no existe. */
@@ -36,6 +40,46 @@ export function toMoney(value: number | string): number {
 export async function countOf(query: Query): Promise<number> {
   const snapshot = await query.count().get();
   return snapshot.data().count;
+}
+
+/** Colección de contadores de createWithNextCode: un documento por colección { last, updatedAt }. */
+const COUNTERS_COLLECTION = '_counters';
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Crea un documento cuyo id es el próximo código correlativo de la colección: prefijo + número con ceros a la
+ * izquierda. createWithNextCode('employees', 'E-', (code) => ({ employeeNumber: code, ... })) → id 'E-0004'.
+ * El contador vive en _counters/{colección} y se incrementa en la misma transacción que crea el documento: dos altas
+ * simultáneas nunca repiten código. Si el contador todavía no existe (datos cargados por los scripts de la capa
+ * database), arranca desde el mayor código con ese prefijo que ya esté en la colección.
+ */
+export async function createWithNextCode<T extends DocumentData>(
+  collectionName: string,
+  prefix: string,
+  build: (code: string) => T,
+  digits = 4,
+): Promise<T & { id: string }> {
+  const collection = db.collection(collectionName);
+  const counterRef = db.collection(COUNTERS_COLLECTION).doc(collectionName);
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}(\\d+)$`);
+  return db.runTransaction(async (trx) => {
+    const counter = await trx.get(counterRef);
+    let last = counter.exists ? Number(counter.get('last')) || 0 : 0;
+    if (!counter.exists) {
+      const existing = await trx.get(collection.select());
+      for (const doc of existing.docs) {
+        const match = pattern.exec(doc.id);
+        if (match) last = Math.max(last, Number(match[1]));
+      }
+    }
+    const next = last + 1;
+    const code = `${prefix}${String(next).padStart(digits, '0')}`;
+    const document = build(code);
+    trx.set(counterRef, { last: next, updatedAt: Timestamp.now() });
+    trx.create(collection.doc(code), document);
+    return { ...document, id: code };
+  });
 }
 
 /** Rango para buscar por prefijo: where(campo, '>=', desde).where(campo, '<=', hasta). */
